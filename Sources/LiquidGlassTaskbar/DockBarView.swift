@@ -37,12 +37,16 @@ struct DockBarView: View {
         // One Liquid Glass pill hugging its content, centered like the Dock.
         .glassEffect(.regular, in: .rect(cornerRadius: 26))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Animates item changes and the pill width following them — buttons
+        // morph between icon-only and icon+title states.
+        .animation(.smooth(duration: 0.3), value: tracker.items)
     }
 
     private var itemsRow: some View {
         HStack(spacing: 4) {
             ForEach(tracker.items) { item in
                 DockItemButton(item: item, tracker: tracker)
+                    .transition(.blurReplace)
             }
         }
     }
@@ -153,6 +157,7 @@ private struct DockItemButton: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .help(item.isPlaceholder ? "Launch \(item.appName)" : item.title)
         .contextMenu { contextMenuItems }
     }
