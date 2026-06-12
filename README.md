@@ -134,3 +134,12 @@ Quit the app (the system Dock restores automatically), delete the app and:
 defaults delete sk.michalek.LiquidGlassTaskbar
 tccutil reset Accessibility sk.michalek.LiquidGlassTaskbar
 ```
+
+## License
+
+Copyright (c) 2026 Andrej Michalek
+
+Licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md) —
+free to use, modify, and share for any noncommercial purpose (personal use,
+research, education, nonprofits). Commercial use requires a separate license
+from the author.
