@@ -43,10 +43,13 @@ final class DockPanelController {
     private func reframe() {
         guard let screen = NSScreen.screens.first else { return }
         let frame = screen.frame
+        // Reaches the very bottom edge — the strip below the pill stays
+        // clickable so edge clicks land on the button above (Fitts's law,
+        // like the Windows taskbar).
         panel.setFrame(NSRect(x: frame.minX + Self.sideInset,
-                              y: frame.minY + Self.bottomInset,
+                              y: frame.minY,
                               width: frame.width - Self.sideInset * 2,
-                              height: Self.barHeight),
+                              height: Self.barHeight + Self.bottomInset),
                        display: true)
     }
 

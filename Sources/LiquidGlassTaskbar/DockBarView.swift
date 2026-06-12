@@ -33,9 +33,18 @@ struct DockBarView: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(maxHeight: .infinity)
+        .frame(height: DockPanelController.barHeight)
         // One Liquid Glass pill hugging its content, centered like the Dock.
         .glassEffect(.regular, in: .rect(cornerRadius: 26))
+        .padding(.bottom, DockPanelController.bottomInset)
+        // Faint shadow strip under the pill — alpha above the window
+        // server's click-through threshold, so clicks at the very bottom
+        // edge reach the buttons' extended hit shapes instead of falling
+        // through to the desktop.
+        .background(alignment: .bottom) {
+            Color.black.opacity(0.1)
+                .frame(height: DockPanelController.bottomInset)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Animates item changes and the pill width following them — buttons
         // morph between icon-only and icon+title states.
@@ -58,6 +67,19 @@ struct DockBarView: View {
     }
 }
 
+/// Button hit area extended below its visual bounds down to the screen
+/// edge, so a click with the cursor slammed to the bottom still lands on
+/// the button above it.
+private struct EdgeReachShape: Shape {
+    var cornerRadius: CGFloat = 8
+
+    func path(in rect: CGRect) -> Path {
+        var path = RoundedRectangle(cornerRadius: cornerRadius).path(in: rect)
+        path.addRect(CGRect(x: rect.minX, y: rect.maxY - 1, width: rect.width, height: 40))
+        return path
+    }
+}
+
 private struct AppsButton: View {
     var onCustomLauncher: () -> Void
     @State private var hovering = false
@@ -76,6 +98,7 @@ private struct AppsButton: View {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.accentColor.opacity(hovering ? 0.9 : 0.7))
             )
+            .contentShape(EdgeReachShape())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -110,7 +133,7 @@ private struct TrailingIconButton: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(hovering ? Color.primary.opacity(0.16) : Color.primary.opacity(0.06))
                 )
-                .contentShape(RoundedRectangle(cornerRadius: 8))
+                .contentShape(EdgeReachShape())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -153,7 +176,7 @@ private struct DockItemButton: View {
                     .stroke(item.isFocused ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.08),
                             lineWidth: 1)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .contentShape(EdgeReachShape())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
