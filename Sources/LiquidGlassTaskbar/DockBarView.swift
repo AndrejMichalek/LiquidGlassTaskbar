@@ -4,14 +4,15 @@ import SwiftUI
 /// Button frames in the "bar" coordinate space, for routing clicks on the
 /// bottom edge strip to the button above. Reference type on purpose —
 /// frame updates must not trigger re-renders.
-private final class BarGeometry: ObservableObject {
+final class BarGeometry {
     var frames: [String: CGRect] = [:]
+    var routeEdgeClick: ((CGFloat) -> Void)?
 }
 
 struct DockBarView: View {
     @ObservedObject var tracker: WindowTracker
+    let geometry: BarGeometry
     var onCustomLauncher: () -> Void
-    @StateObject private var geometry = BarGeometry()
 
     var body: some View {
         HStack(spacing: 8) {
@@ -64,6 +65,9 @@ struct DockBarView: View {
         // Animates item changes and the pill width following them — buttons
         // morph between icon-only and icon+title states.
         .animation(.smooth(duration: 0.3), value: tracker.items)
+        .onAppear {
+            geometry.routeEdgeClick = handleEdgeClick(atX:)
+        }
     }
 
     private var itemsRow: some View {

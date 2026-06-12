@@ -8,8 +8,10 @@ final class DockPanelController {
     static let bottomInset: CGFloat = 8
 
     private let panel: NSPanel
+    private let geometry: BarGeometry
 
-    init(tracker: WindowTracker, onCustomLauncher: @escaping () -> Void) {
+    init(tracker: WindowTracker, geometry: BarGeometry, onCustomLauncher: @escaping () -> Void) {
+        self.geometry = geometry
         let panel = NSPanel(contentRect: .zero,
                             styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered,
@@ -26,7 +28,9 @@ final class DockPanelController {
         panel.isFloatingPanel = true
         panel.becomesKeyOnlyIfNeeded = true
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(rootView: DockBarView(tracker: tracker, onCustomLauncher: onCustomLauncher))
+        panel.contentView = NSHostingView(rootView: DockBarView(tracker: tracker,
+                                                                geometry: geometry,
+                                                                onCustomLauncher: onCustomLauncher))
         self.panel = panel
 
         reframe()
@@ -38,6 +42,23 @@ final class DockPanelController {
         ) { [weak self] _ in
             self?.reframe()
         }
+
+        // Bottom-edge clicks may be delivered to the app underneath instead
+        // of our (transparent-ish) strip — the global monitor catches those
+        // and routes them to the button above. Clicks our window does get
+        // are handled by the strip's own tap gesture; the two paths are
+        // disjoint, so nothing fires twice.
+        NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
+            self?.handleGlobalEdgeClick()
+        }
+    }
+
+    private func handleGlobalEdgeClick() {
+        guard panel.isVisible, let screen = NSScreen.screens.first else { return }
+        let location = NSEvent.mouseLocation
+        guard location.y <= screen.frame.minY + Self.bottomInset + 1,
+              location.x >= panel.frame.minX, location.x <= panel.frame.maxX else { return }
+        geometry.routeEdgeClick?(location.x - panel.frame.minX)
     }
 
     private func reframe() {

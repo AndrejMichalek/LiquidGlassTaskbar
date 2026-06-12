@@ -111,8 +111,12 @@ enum AX {
     }
 
     static func focusedWindow(of appElement: AXUIElement) -> AXUIElement? {
+        element(appElement, kAXFocusedWindowAttribute)
+    }
+
+    static func element(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &value) == .success,
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
               let value, CFGetTypeID(value) == AXUIElementGetTypeID() else {
             return nil
         }

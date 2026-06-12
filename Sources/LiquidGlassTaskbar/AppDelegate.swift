@@ -14,7 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
-        dockPanel = DockPanelController(tracker: tracker) { [weak self] in
+        dockPanel = DockPanelController(tracker: tracker, geometry: BarGeometry()) { [weak self] in
             self?.launcher.toggle()
         }
         dockPanel?.shouldStayRevealed = { [weak self] in

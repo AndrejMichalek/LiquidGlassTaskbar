@@ -206,11 +206,34 @@ final class WindowTracker: ObservableObject {
             ctx.app.activate()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            SystemActions.postKeystroke(keyCode: 45, flags: .maskCommand, toPid: pid) // kVK_ANSI_N
+            guard let self else { return }
+            // Press the app's own File ▸ New Window menu item — ⌘N means
+            // "New File" in many apps (VS Code), so the keystroke is only
+            // a fallback.
+            if !self.pressNewWindowMenuItem(ctx) {
+                SystemActions.postKeystroke(keyCode: 45, flags: .maskCommand, toPid: pid) // kVK_ANSI_N
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-                self?.forceReconcile()
+                self.forceReconcile()
             }
         }
+    }
+
+    private func pressNewWindowMenuItem(_ ctx: AppContext) -> Bool {
+        guard let menuBar = AX.element(ctx.element, kAXMenuBarAttribute) else { return false }
+        // Menus go Apple, app, File, … — scan a few menus past the Apple
+        // one for the first "New … Window" item (New Window,
+        // New Finder Window, …).
+        for menu in AX.elements(menuBar, kAXChildrenAttribute).dropFirst(1).prefix(4) {
+            guard let submenu = AX.elements(menu, kAXChildrenAttribute).first else { continue }
+            for menuItem in AX.elements(submenu, kAXChildrenAttribute) {
+                guard let title: String = AX.copyValue(menuItem, kAXTitleAttribute),
+                      title.hasPrefix("New"), title.hasSuffix("Window") else { continue }
+                AXUIElementPerformAction(menuItem, kAXPressAction as CFString)
+                return true
+            }
+        }
+        return false
     }
 
     func hideApp(_ item: DockItem) {
