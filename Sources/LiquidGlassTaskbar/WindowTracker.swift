@@ -341,11 +341,63 @@ final class WindowTracker: ObservableObject {
             findByElement(element)?.1.isMinimized = true
         case kAXWindowDeminiaturizedNotification:
             findByElement(element)?.1.isMinimized = false
+        case kAXWindowResizedNotification:
+            // Fires often during manual resizes — handle and return without
+            // republishing.
+            enforceReservedZone(element)
+            return
         default:
             break
         }
         refreshFocus()
         publish()
+    }
+
+    // MARK: - Reserved zone above the bar
+
+    private let keepAboveBarKey = "keepWindowsAboveBar"
+
+    /// Windows that maximize or tile to the bottom screen edge are resized
+    /// to stop above the bar — the Windows "work area" behavior that macOS
+    /// has no public API for.
+    var keepWindowsAboveBar: Bool {
+        get {
+            UserDefaults.standard.object(forKey: keepAboveBarKey) == nil
+                ? true
+                : UserDefaults.standard.bool(forKey: keepAboveBarKey)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: keepAboveBarKey)
+            if newValue { enforceReservedZoneAll() }
+        }
+    }
+
+    private func enforceReservedZone(_ element: AXUIElement) {
+        guard keepWindowsAboveBar,
+              let screen = NSScreen.screens.first,
+              !AX.isMinimized(element),
+              !AX.isFullscreen(element),
+              let frame = AX.frame(element) else { return }
+        // AX coordinates: y = 0 at the top of the primary screen.
+        let screenHeight = screen.frame.height
+        guard frame.midX >= screen.frame.minX, frame.midX <= screen.frame.maxX else { return }
+        let reserved = DockPanelController.barHeight + DockPanelController.bottomInset + 8
+        let windowBottom = frame.origin.y + frame.size.height
+        // Only windows snapped to the bottom edge (maximize, tiling) —
+        // 20 pt tolerance covers Tahoe's tiling margins.
+        guard windowBottom >= screenHeight - 20 else { return }
+        let newHeight = screenHeight - reserved - frame.origin.y
+        guard newHeight >= 100, abs(newHeight - frame.size.height) > 1 else { return }
+        AX.setSize(element, CGSize(width: frame.size.width, height: newHeight))
+    }
+
+    private func enforceReservedZoneAll() {
+        guard keepWindowsAboveBar else { return }
+        for ctx in contexts.values {
+            for window in ctx.windows {
+                enforceReservedZone(window.element)
+            }
+        }
     }
 
     // MARK: - App and window management
@@ -391,7 +443,8 @@ final class WindowTracker: ObservableObject {
         for name in [kAXUIElementDestroyedNotification,
                      kAXTitleChangedNotification,
                      kAXWindowMiniaturizedNotification,
-                     kAXWindowDeminiaturizedNotification] {
+                     kAXWindowDeminiaturizedNotification,
+                     kAXWindowResizedNotification] {
             AXObserverAddNotification(observer, element, name as CFString, refcon)
         }
     }
@@ -447,6 +500,7 @@ final class WindowTracker: ObservableObject {
         }
         updateHiddenWindowFlags()
         updateBadges()
+        enforceReservedZoneAll()
         refreshFocus()
         publish()
     }

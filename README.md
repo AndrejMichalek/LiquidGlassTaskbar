@@ -67,6 +67,11 @@ The app lives in the menu bar (dock icon symbol):
   defaults write com.apple.dock minimize-to-application -bool false
   killall Dock
   ```
+- **Keep Windows Above Bar** — windows that maximize or tile to the bottom
+  screen edge (Tahoe's drag-to-top gesture, the green zoom button) are
+  automatically resized to stop above the bar, like the Windows work area.
+  macOS has no public API to reserve screen space, so this is enforced via
+  Accessibility on window-resize events
 - **Launch at Login** — via `SMAppService`
 - **Refresh Window List** — forces a rescan (one also runs every 4 s as a
   safety net alongside real-time AX notifications)
@@ -97,8 +102,9 @@ See [PLAN.md](PLAN.md) for the original design document.
 ## Known limitations
 
 - The bar shows on the primary display only (multi-monitor support planned)
-- Maximized (non-fullscreen) windows can extend beneath the bar — macOS has
-  no public API to reserve screen space
+- Manually dragging a window's bottom edge under the bar is still possible —
+  only maximize/tile-to-bottom resizes are corrected ("Keep Windows Above
+  Bar")
 - The bar doesn't show in fullscreen Spaces (same as the Windows taskbar)
 - App-specific Dock menu items (e.g. Safari's "New Private Window") are a
   private channel between apps and the system Dock; the standard actions

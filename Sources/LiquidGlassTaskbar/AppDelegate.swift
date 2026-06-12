@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var trustTimer: Timer?
     private var hideDockMenuItem: NSMenuItem?
     private var loginMenuItem: NSMenuItem?
+    private var keepAboveMenuItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
@@ -58,6 +59,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hide.target = self
         menu.addItem(hide)
 
+        let keepAbove = NSMenuItem(title: "Keep Windows Above Bar",
+                                   action: #selector(toggleKeepAbove(_:)), keyEquivalent: "")
+        keepAbove.target = self
+        menu.addItem(keepAbove)
+
         let login = NSMenuItem(title: "Launch at Login",
                                action: #selector(toggleLoginItem(_:)), keyEquivalent: "")
         login.target = self
@@ -78,11 +84,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = item
         hideDockMenuItem = hide
         loginMenuItem = login
+        keepAboveMenuItem = keepAbove
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         hideDockMenuItem?.state = SystemDockManager.shared.userWantsHidden ? .on : .off
         loginMenuItem?.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        keepAboveMenuItem?.state = tracker.keepWindowsAboveBar ? .on : .off
+    }
+
+    @objc private func toggleKeepAbove(_ sender: Any?) {
+        tracker.keepWindowsAboveBar.toggle()
     }
 
     @objc private func toggleSystemDock(_ sender: Any?) {

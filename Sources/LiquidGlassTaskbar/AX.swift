@@ -127,4 +127,33 @@ enum AX {
         }
         AXUIElementPerformAction((value as! AXUIElement), kAXPressAction as CFString)
     }
+
+    static func isFullscreen(_ window: AXUIElement) -> Bool {
+        (copyValue(window, "AXFullScreen") as Bool?) ?? false
+    }
+
+    /// Window frame in AX coordinates (origin at the top-left of the
+    /// primary screen, y growing downwards).
+    static func frame(_ window: AXUIElement) -> CGRect? {
+        var positionRef: CFTypeRef?
+        var sizeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionRef) == .success,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeRef) == .success,
+              let positionRef, CFGetTypeID(positionRef) == AXValueGetTypeID(),
+              let sizeRef, CFGetTypeID(sizeRef) == AXValueGetTypeID() else {
+            return nil
+        }
+        var position = CGPoint.zero
+        var size = CGSize.zero
+        AXValueGetValue((positionRef as! AXValue), .cgPoint, &position)
+        AXValueGetValue((sizeRef as! AXValue), .cgSize, &size)
+        return CGRect(origin: position, size: size)
+    }
+
+    static func setSize(_ window: AXUIElement, _ size: CGSize) {
+        var newSize = size
+        if let value = AXValueCreate(.cgSize, &newSize) {
+            AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value)
+        }
+    }
 }
