@@ -132,15 +132,17 @@ private struct DockItemButton: View {
                 .frame(width: 26, height: 26)
                 .opacity(item.isMinimized ? 0.5 : 1)
 
-                Text(item.title)
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .foregroundStyle(titleColor)
+                if showsTitle {
+                    Text(item.title)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundStyle(titleColor)
+                        .frame(width: titleWidth, alignment: .leading)
+                }
             }
             .padding(.horizontal, 8)
             .frame(height: 34)
-            .frame(minWidth: 64, maxWidth: 220, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 8).fill(backgroundColor))
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
@@ -200,6 +202,18 @@ private struct DockItemButton: View {
                 Button("Quit \(item.appName)") { tracker.quitAppByPid(item.pid) }
             }
         }
+    }
+
+    /// Pinned apps without windows show as icon-only buttons (Win7 style).
+    private var showsTitle: Bool {
+        !(item.isPlaceholder && item.isPinned)
+    }
+
+    /// Exact text width so buttons hug short titles; long ones cap and
+    /// truncate with an ellipsis.
+    private var titleWidth: CGFloat {
+        let size = (item.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)])
+        return min(ceil(size.width) + 2, 170)
     }
 
     private var titleColor: Color {

@@ -639,9 +639,12 @@ final class WindowTracker: ObservableObject {
 
     private func updateFullscreenState(_ focusedElement: AXUIElement?) {
         var active = false
-        if let focusedElement {
+        if let focusedElement, !AX.isMinimized(focusedElement) {
             active = AX.isFullscreen(focusedElement)
             if !active,
+               // Real windows only — after a minimize, focus can land on
+               // Finder's desktop, which also covers the whole screen.
+               AX.isTrackableWindow(focusedElement),
                let screen = NSScreen.screens.first,
                let frame = AX.frame(focusedElement) {
                 // Borderless-fullscreen games don't set AXFullScreen —
