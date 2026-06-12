@@ -1,13 +1,22 @@
 import AppKit
 import SwiftUI
 
+/// Button frames in the "bar" coordinate space, for routing clicks on the
+/// bottom edge strip to the button above. Reference type on purpose —
+/// frame updates must not trigger re-renders.
+private final class BarGeometry: ObservableObject {
+    var frames: [String: CGRect] = [:]
+}
+
 struct DockBarView: View {
     @ObservedObject var tracker: WindowTracker
     var onCustomLauncher: () -> Void
+    @StateObject private var geometry = BarGeometry()
 
     var body: some View {
         HStack(spacing: 8) {
             AppsButton(onCustomLauncher: onCustomLauncher)
+                .reportBarFrame(id: "apps", into: geometry)
             barDivider
             if !tracker.started {
                 Text("Grant LiquidGlassTaskbar access in System Settings → Privacy & Security → Accessibility")
@@ -27,10 +36,12 @@ struct DockBarView: View {
                                help: "Screenshot selection (⇧⌘4)") {
                 SystemActions.screenshotSelection()
             }
+            .reportBarFrame(id: "screenshot", into: geometry)
             TrailingIconButton(systemName: "display",
                                help: "Show Desktop") {
                 SystemActions.showDesktop()
             }
+            .reportBarFrame(id: "desktop", into: geometry)
         }
         .padding(.horizontal, 12)
         .frame(height: DockPanelController.barHeight)
@@ -38,14 +49,18 @@ struct DockBarView: View {
         .glassEffect(.regular, in: .rect(cornerRadius: 26))
         .padding(.bottom, DockPanelController.bottomInset)
         // Faint shadow strip under the pill — alpha above the window
-        // server's click-through threshold, so clicks at the very bottom
-        // edge reach the buttons' extended hit shapes instead of falling
-        // through to the desktop.
+        // server's click-through threshold, so bottom-edge clicks stay in
+        // our window; the tap handler routes them to the button above.
         .background(alignment: .bottom) {
             Color.black.opacity(0.1)
                 .frame(height: DockPanelController.bottomInset)
+                .contentShape(Rectangle())
+                .onTapGesture(coordinateSpace: .named("bar")) { location in
+                    handleEdgeClick(atX: location.x)
+                }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .coordinateSpace(name: "bar")
         // Animates item changes and the pill width following them — buttons
         // morph between icon-only and icon+title states.
         .animation(.smooth(duration: 0.3), value: tracker.items)
@@ -56,7 +71,37 @@ struct DockBarView: View {
             ForEach(tracker.items) { item in
                 DockItemButton(item: item, tracker: tracker)
                     .transition(.blurReplace)
+                    .reportBarFrame(id: "item-\(item.id)", into: geometry)
             }
+        }
+    }
+
+    /// A click on the bottom strip acts as a click on the button above it.
+    private func handleEdgeClick(atX x: CGFloat) {
+        func hit(_ id: String) -> Bool {
+            guard let frame = geometry.frames[id] else { return false }
+            return x >= frame.minX && x <= frame.maxX
+        }
+        if hit("apps") {
+            if !SystemActions.openSystemAppsWindow() { onCustomLauncher() }
+            return
+        }
+        if hit("screenshot") {
+            SystemActions.screenshotSelection()
+            return
+        }
+        if hit("desktop") {
+            SystemActions.showDesktop()
+            return
+        }
+        // Only current items — stale frames of removed buttons never match.
+        for item in tracker.items where hit("item-\(item.id)") {
+            if let windowID = item.windowID {
+                tracker.handlePrimaryClick(windowID)
+            } else {
+                tracker.handlePlaceholderClick(item)
+            }
+            return
         }
     }
 
@@ -64,6 +109,14 @@ struct DockBarView: View {
         Rectangle()
             .fill(Color.primary.opacity(0.2))
             .frame(width: 1, height: 28)
+    }
+}
+
+private extension View {
+    func reportBarFrame(id: String, into geometry: BarGeometry) -> some View {
+        onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named("bar")) }) { frame in
+            geometry.frames[id] = frame
+        }
     }
 }
 
@@ -109,10 +162,7 @@ private struct AppsButton: View {
     }
 
     private func openSystemApps() {
-        // The system "Apps" window of macOS Tahoe (Launchpad's replacement)
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.apps.launcher") {
-            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
-        } else {
+        if !SystemActions.openSystemAppsWindow() {
             onCustomLauncher()
         }
     }

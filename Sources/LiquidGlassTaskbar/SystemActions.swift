@@ -16,6 +16,16 @@ enum SystemActions {
         }
     }
 
+    /// The system "Apps" window of macOS Tahoe (Launchpad's replacement).
+    /// Returns false when the app is missing (pre-Tahoe systems).
+    static func openSystemAppsWindow() -> Bool {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.apps.launcher") else {
+            return false
+        }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        return true
+    }
+
     /// Region screenshot — synthetic ⇧⌘4.
     static func screenshotSelection() {
         postKeystroke(keyCode: 21, flags: [.maskCommand, .maskShift]) // kVK_ANSI_4
