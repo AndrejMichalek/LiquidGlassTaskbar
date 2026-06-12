@@ -63,7 +63,7 @@ SwiftPM executable target + a script that assembles the `.app` bundle:
 
 ```
 swift build -c release
-→ CustomMacDock.app/Contents/{MacOS/CustomMacDock, Info.plist}
+→ LiquidGlassTaskbar.app/Contents/{MacOS/LiquidGlassTaskbar, Info.plist}
 → codesign
 ```
 
@@ -76,7 +76,7 @@ swift build -c release
 ## Architecture
 
 ```
-CustomMacDock.app
+LiquidGlassTaskbar.app
 ├── WindowTracker        AXObserver per app + NSWorkspace → @Published model
 │     DockItem { windowID?, pid?, bundleID, title, icon, isMinimized,
 │                isFocused, isPinned, isAttention }

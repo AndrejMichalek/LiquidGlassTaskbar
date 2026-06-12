@@ -1,6 +1,8 @@
-# CustomMacDock
+# LiquidGlassTaskbar
 
-A Windows 7 style taskbar for macOS Tahoe — a full replacement for the system Dock.
+A Windows 7 style taskbar for macOS Tahoe — a full replacement for the system
+Dock, rendered as a floating Liquid Glass bar using the native Tahoe
+`glassEffect` APIs.
 
 If you switched from Windows and never got used to how the macOS Dock handles
 windows and minimizing, this is for you:
@@ -25,15 +27,15 @@ windows and minimizing, this is for you:
 
 ## Requirements
 
-- macOS Tahoe (26.x); most features work on macOS 15+ but the Apps button
-  targets Tahoe's `com.apple.apps.launcher`
+- macOS Tahoe (26.x) — the UI is built on Tahoe's Liquid Glass APIs and the
+  Apps button targets Tahoe's `com.apple.apps.launcher`
 - Swift toolchain (Command Line Tools are enough — no Xcode needed)
 
 ## Build & run
 
 ```sh
 ./build.sh
-open build/CustomMacDock.app
+open build/LiquidGlassTaskbar.app
 ```
 
 On first launch the app asks for **Accessibility** access
@@ -41,13 +43,13 @@ On first launch the app asks for **Accessibility** access
 within a few seconds of granting it.
 
 > **Code signing note:** the build script signs with a self-signed
-> certificate named `CustomMacDock Signing` if one exists in your keychain,
+> certificate named `LiquidGlassTaskbar Signing` if one exists in your keychain,
 > so the Accessibility permission survives rebuilds. Without it, the build
 > falls back to ad-hoc signing and macOS drops the permission on every
 > rebuild (re-grant it, or reset with
-> `tccutil reset Accessibility sk.michalek.CustomMacDock`). To create the
+> `tccutil reset Accessibility sk.michalek.LiquidGlassTaskbar`). To create the
 > certificate: Keychain Access → Certificate Assistant → Create a
-> Certificate → type "Code Signing", name it `CustomMacDock Signing`.
+> Certificate → type "Code Signing", name it `LiquidGlassTaskbar Signing`.
 
 ## Status bar menu
 
@@ -56,7 +58,7 @@ The app lives in the menu bar (dock icon symbol):
 - **Hide System Dock** — enables autohide with a 1000 s delay so the system
   Dock never slides out, and switches the minimize animation to `scale` +
   `minimize-to-application` so windows visually shrink into the bar.
-  Everything is restored automatically when CustomMacDock quits. Manual
+  Everything is restored automatically when LiquidGlassTaskbar quits. Manual
   recovery, should you ever need it:
   ```sh
   defaults delete com.apple.dock autohide-delay
@@ -68,7 +70,7 @@ The app lives in the menu bar (dock icon symbol):
 - **Launch at Login** — via `SMAppService`
 - **Refresh Window List** — forces a rescan (one also runs every 4 s as a
   safety net alongside real-time AX notifications)
-- **Quit CustomMacDock**
+- **Quit LiquidGlassTaskbar**
 
 ## How it works
 
@@ -106,9 +108,9 @@ See [PLAN.md](PLAN.md) for the original design document.
 ## Debugging
 
 ```sh
-defaults write sk.michalek.CustomMacDock diagnosticsRequested -bool true
+defaults write sk.michalek.LiquidGlassTaskbar diagnosticsRequested -bool true
 # wait ~5 s
-cat /tmp/CustomMacDock-diag.txt
+cat /tmp/LiquidGlassTaskbar-diag.txt
 ```
 
 Dumps the full window-tracking state: every running app, its AX windows
@@ -122,6 +124,6 @@ test/BadgeTest.app` — it sets its own badge 10 s after launch.
 Quit the app (the system Dock restores automatically), delete the app and:
 
 ```sh
-defaults delete sk.michalek.CustomMacDock
-tccutil reset Accessibility sk.michalek.CustomMacDock
+defaults delete sk.michalek.LiquidGlassTaskbar
+tccutil reset Accessibility sk.michalek.LiquidGlassTaskbar
 ```

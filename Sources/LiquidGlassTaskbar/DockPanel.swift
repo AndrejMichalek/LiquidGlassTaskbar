@@ -1,9 +1,11 @@
 import AppKit
 import SwiftUI
 
-/// Full-width bar pinned to the bottom edge of the primary display.
+/// Floating Liquid Glass bar above the bottom edge of the primary display.
 final class DockPanelController {
-    static let barHeight: CGFloat = 48
+    static let barHeight: CGFloat = 54
+    static let sideInset: CGFloat = 10
+    static let bottomInset: CGFloat = 8
 
     private let panel: NSPanel
 
@@ -41,9 +43,9 @@ final class DockPanelController {
     private func reframe() {
         guard let screen = NSScreen.screens.first else { return }
         let frame = screen.frame
-        panel.setFrame(NSRect(x: frame.minX,
-                              y: frame.minY,
-                              width: frame.width,
+        panel.setFrame(NSRect(x: frame.minX + Self.sideInset,
+                              y: frame.minY + Self.bottomInset,
+                              width: frame.width - Self.sideInset * 2,
                               height: Self.barHeight),
                        display: true)
     }

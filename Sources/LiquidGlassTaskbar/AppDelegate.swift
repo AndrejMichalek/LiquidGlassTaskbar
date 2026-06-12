@@ -48,7 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(systemSymbolName: "dock.rectangle",
-                                     accessibilityDescription: "CustomMacDock")
+                                     accessibilityDescription: "LiquidGlassTaskbar")
 
         let menu = NSMenu()
         menu.delegate = self
@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(refresh)
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit CustomMacDock",
+        menu.addItem(NSMenuItem(title: "Quit LiquidGlassTaskbar",
                                 action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 
         item.menu = menu

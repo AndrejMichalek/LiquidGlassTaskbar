@@ -12,7 +12,7 @@ struct DockBarView: View {
                 .fill(Color.primary.opacity(0.2))
                 .frame(width: 1, height: 28)
             if !tracker.started {
-                Text("Grant CustomMacDock access in System Settings → Privacy & Security → Accessibility")
+                Text("Grant LiquidGlassTaskbar access in System Settings → Privacy & Security → Accessibility")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
@@ -36,14 +36,10 @@ struct DockBarView: View {
                 SystemActions.showDesktop()
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.primary.opacity(0.15))
-                .frame(height: 1)
-        }
+        // One Liquid Glass slab, same look as the Tahoe system Dock.
+        .glassEffect(.regular, in: .rect(cornerRadius: 26))
     }
 }
 

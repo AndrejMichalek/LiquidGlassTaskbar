@@ -1,13 +1,13 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.2
 import PackageDescription
 
 let package = Package(
-    name: "CustomMacDock",
-    platforms: [.macOS(.v15)],
+    name: "LiquidGlassTaskbar",
+    platforms: [.macOS(.v26)],
     targets: [
         .executableTarget(
-            name: "CustomMacDock",
-            path: "Sources/CustomMacDock",
+            name: "LiquidGlassTaskbar",
+            path: "Sources/LiquidGlassTaskbar",
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]

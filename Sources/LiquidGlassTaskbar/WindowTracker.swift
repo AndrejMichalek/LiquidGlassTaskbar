@@ -677,7 +677,7 @@ final class WindowTracker: ObservableObject {
 
     func writeDiagnostics() {
         var lines: [String] = []
-        lines.append("CustomMacDock diagnostics")
+        lines.append("LiquidGlassTaskbar diagnostics")
         lines.append("AX trusted: \(AXIsProcessTrusted()), started: \(started)")
         lines.append("pinned: \(pinned.map(\.bundleID))")
         lines.append("badges: \(lastBadges)")
@@ -730,6 +730,6 @@ final class WindowTracker: ObservableObject {
             }
         }
         try? lines.joined(separator: "\n")
-            .write(toFile: "/tmp/CustomMacDock-diag.txt", atomically: true, encoding: .utf8)
+            .write(toFile: "/tmp/LiquidGlassTaskbar-diag.txt", atomically: true, encoding: .utf8)
     }
 }

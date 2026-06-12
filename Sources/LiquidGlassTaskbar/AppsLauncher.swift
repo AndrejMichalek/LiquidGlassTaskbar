@@ -108,8 +108,9 @@ final class AppsLauncherController: NSObject, NSWindowDelegate {
             onClose: { [weak self] in self?.hide() }
         ))
         if let screen = NSScreen.screens.first {
-            let origin = NSPoint(x: screen.frame.minX + 8,
-                                 y: screen.frame.minY + DockPanelController.barHeight + 8)
+            let origin = NSPoint(x: screen.frame.minX + DockPanelController.sideInset,
+                                 y: screen.frame.minY + DockPanelController.bottomInset
+                                     + DockPanelController.barHeight + 8)
             panel.setFrame(NSRect(origin: origin, size: Self.panelSize), display: true)
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -177,8 +178,7 @@ private struct AppsGridView: View {
         }
         .padding(12)
         .frame(width: 560, height: 460)
-        .background(RoundedRectangle(cornerRadius: 16).fill(.regularMaterial))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.primary.opacity(0.15)))
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .onAppear { searchFocused = true }
         .onExitCommand { onClose() }
     }
