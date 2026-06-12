@@ -8,25 +8,21 @@ struct DockBarView: View {
     var body: some View {
         HStack(spacing: 8) {
             AppsButton(onCustomLauncher: onCustomLauncher)
-            Rectangle()
-                .fill(Color.primary.opacity(0.2))
-                .frame(width: 1, height: 28)
+            barDivider
             if !tracker.started {
                 Text("Grant LiquidGlassTaskbar access in System Settings → Privacy & Security → Accessibility")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 4) {
-                    ForEach(tracker.items) { item in
-                        DockItemButton(item: item, tracker: tracker)
-                    }
+            // Hug the content while it fits; fall back to a scrolling row
+            // that takes the full width when there are too many windows.
+            ViewThatFits(in: .horizontal) {
+                itemsRow
+                ScrollView(.horizontal, showsIndicators: false) {
+                    itemsRow
                 }
             }
-            Spacer(minLength: 0)
-            Rectangle()
-                .fill(Color.primary.opacity(0.2))
-                .frame(width: 1, height: 28)
+            barDivider
             TrailingIconButton(systemName: "camera.viewfinder",
                                help: "Screenshot selection (⇧⌘4)") {
                 SystemActions.screenshotSelection()
@@ -37,9 +33,24 @@ struct DockBarView: View {
             }
         }
         .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // One Liquid Glass slab, same look as the Tahoe system Dock.
+        .frame(maxHeight: .infinity)
+        // One Liquid Glass pill hugging its content, centered like the Dock.
         .glassEffect(.regular, in: .rect(cornerRadius: 26))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var itemsRow: some View {
+        HStack(spacing: 4) {
+            ForEach(tracker.items) { item in
+                DockItemButton(item: item, tracker: tracker)
+            }
+        }
+    }
+
+    private var barDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.2))
+            .frame(width: 1, height: 28)
     }
 }
 

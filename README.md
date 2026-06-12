@@ -1,8 +1,9 @@
 # LiquidGlassTaskbar
 
 A Windows 7 style taskbar for macOS Tahoe — a full replacement for the system
-Dock, rendered as a floating Liquid Glass bar using the native Tahoe
-`glassEffect` APIs.
+Dock, rendered as a centered, content-hugging Liquid Glass pill using the
+native Tahoe `glassEffect` APIs. With too many windows to fit, it expands to
+the full width and scrolls.
 
 If you switched from Windows and never got used to how the macOS Dock handles
 windows and minimizing, this is for you:

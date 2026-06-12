@@ -108,7 +108,8 @@ final class AppsLauncherController: NSObject, NSWindowDelegate {
             onClose: { [weak self] in self?.hide() }
         ))
         if let screen = NSScreen.screens.first {
-            let origin = NSPoint(x: screen.frame.minX + DockPanelController.sideInset,
+            // Centered above the bar, matching the centered pill layout.
+            let origin = NSPoint(x: screen.frame.midX - Self.panelSize.width / 2,
                                  y: screen.frame.minY + DockPanelController.bottomInset
                                      + DockPanelController.barHeight + 8)
             panel.setFrame(NSRect(origin: origin, size: Self.panelSize), display: true)
