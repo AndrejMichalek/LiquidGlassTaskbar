@@ -3,7 +3,8 @@ import SwiftUI
 
 /// Floating Liquid Glass bar above the bottom edge of the primary display.
 final class DockPanelController {
-    static let barHeight: CGFloat = 54
+    // Driven by the resize handle; everything else derives from it.
+    static var barHeight: CGFloat { BarMetrics.shared.barHeight }
     static let sideInset: CGFloat = 10
     static let bottomInset: CGFloat = 8
 
@@ -43,23 +44,59 @@ final class DockPanelController {
             self?.reframe()
         }
 
-        // The very bottom strip of pixels can't be reliably hit-tested by
-        // SwiftUI, so a local mouse monitor routes clicks there to the
-        // button above. It only consumes strip clicks; everything else
-        // falls through to SwiftUI so normal buttons keep working.
-        NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
-            self?.handleLocalMouseDown(event) ?? event
+        // A local mouse monitor handles two things SwiftUI can't do
+        // reliably in a non-activating panel: routing bottom-strip clicks
+        // to the button above, and dragging a divider to resize the bar.
+        // Everything else falls through so normal buttons keep working.
+        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
+            self?.handleLocalMouse(event) ?? event
         }
     }
 
-    private func handleLocalMouseDown(_ event: NSEvent) -> NSEvent? {
-        guard event.window === panel else { return event }
-        // locationInWindow: origin at the panel's bottom-left, y upwards —
-        // so the bottom strip is y <= bottomInset.
+    private var resizing = false
+    private var resizeStartMouseY: CGFloat = 0
+    private var resizeStartScale: CGFloat = 1
+
+    private func handleLocalMouse(_ event: NSEvent) -> NSEvent? {
+        if resizing {
+            switch event.type {
+            case .leftMouseDragged:
+                // Mouse y grows upward, so dragging up enlarges the bar.
+                let dy = NSEvent.mouseLocation.y - resizeStartMouseY
+                BarMetrics.shared.setScale(resizeStartScale + dy / 110)
+                reframe()
+                return nil
+            case .leftMouseUp:
+                resizing = false
+                NSCursor.pop()
+                return nil
+            default:
+                return nil
+            }
+        }
+
+        guard event.window === panel, event.type == .leftMouseDown else { return event }
+        // locationInWindow: origin at the panel's bottom-left, y upwards.
         let point = event.locationInWindow
+        if isOnDivider(x: point.x) {
+            resizing = true
+            resizeStartMouseY = NSEvent.mouseLocation.y
+            resizeStartScale = BarMetrics.shared.scale
+            NSCursor.resizeUpDown.push()
+            return nil
+        }
         guard point.y <= Self.bottomInset else { return event }
         geometry.routeEdgeClick?(point.x)
         return nil
+    }
+
+    private func isOnDivider(x: CGFloat) -> Bool {
+        for id in ["divider-left", "divider-right"] {
+            if let frame = geometry.frames[id], x >= frame.minX, x <= frame.maxX {
+                return true
+            }
+        }
+        return false
     }
 
     private func reframe() {

@@ -28,6 +28,11 @@ windows and minimizing, this is for you:
 - **Fullscreen auto-hide**: on fullscreen Spaces the bar hides; move the
   cursor to the bottom screen edge to reveal it (Dock-like), move away to
   hide it again
+- **Resizable**: hover a divider (the cursor turns into the up/down resize
+  arrow) and drag vertically to grow or shrink the whole bar — icons, text,
+  and the reserved zone all scale together. The size is remembered. Windows
+  tiled *after* a resize honor the new height; already-tiled windows keep
+  their size
 - Right-click menu per window: New Window / Restore / Minimize / Close /
   Pin–Unpin / Hide / Quit
 

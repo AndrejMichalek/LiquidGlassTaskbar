@@ -11,6 +11,7 @@ final class BarGeometry {
 
 struct DockBarView: View {
     @ObservedObject var tracker: WindowTracker
+    @ObservedObject private var metrics = BarMetrics.shared
     let geometry: BarGeometry
     var onCustomLauncher: () -> Void
 
@@ -18,7 +19,7 @@ struct DockBarView: View {
         HStack(spacing: 8) {
             AppsButton(onCustomLauncher: onCustomLauncher)
                 .reportBarFrame(id: "apps", into: geometry)
-            barDivider
+            barDivider(id: "divider-left")
             if !tracker.started {
                 Text("Grant LiquidGlassTaskbar access in System Settings → Privacy & Security → Accessibility")
                     .font(.system(size: 12))
@@ -32,7 +33,7 @@ struct DockBarView: View {
                     itemsRow
                 }
             }
-            barDivider
+            barDivider(id: "divider-right")
             TrailingIconButton(systemName: "camera.viewfinder",
                                help: "Screenshot selection (⇧⌘4)") {
                 SystemActions.screenshotSelection()
@@ -45,9 +46,9 @@ struct DockBarView: View {
             .reportBarFrame(id: "desktop", into: geometry)
         }
         .padding(.horizontal, 12)
-        .frame(height: DockPanelController.barHeight)
+        .frame(height: metrics.barHeight)
         // One Liquid Glass pill hugging its content, centered like the Dock.
-        .glassEffect(.regular, in: .rect(cornerRadius: 26))
+        .glassEffect(.regular, in: .rect(cornerRadius: metrics.cornerRadius))
         .padding(.bottom, DockPanelController.bottomInset)
         // Faint shadow strip under the pill. Edge clicks on it are routed
         // by the panel's local mouse monitor (see DockPanelController),
@@ -106,10 +107,20 @@ struct DockBarView: View {
         }
     }
 
-    private var barDivider: some View {
+    /// Divider doubles as a resize handle: hovering shows the up/down
+    /// resize cursor, and the panel's local mouse monitor turns a vertical
+    /// drag here into a scale change. The visible line is 1pt; the
+    /// reported frame is wider so it's easy to grab.
+    private func barDivider(id: String) -> some View {
         Rectangle()
             .fill(Color.primary.opacity(0.2))
-            .frame(width: 1, height: 28)
+            .frame(width: 1, height: metrics.dividerHeight)
+            .frame(width: 11)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
+            }
+            .reportBarFrame(id: id, into: geometry)
     }
 }
 
@@ -123,6 +134,7 @@ private extension View {
 
 private struct AppsButton: View {
     var onCustomLauncher: () -> Void
+    @ObservedObject private var metrics = BarMetrics.shared
     @State private var hovering = false
 
     var body: some View {
@@ -131,10 +143,10 @@ private struct AppsButton: View {
                 Image(systemName: "square.grid.3x3.fill")
                 Text("Apps").fontWeight(.semibold)
             }
-            .font(.system(size: 13))
+            .font(.system(size: metrics.appsFontSize))
             .foregroundStyle(.white)
             .padding(.horizontal, 14)
-            .frame(height: 34)
+            .frame(height: metrics.buttonHeight)
             .background(
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.accentColor.opacity(hovering ? 0.9 : 0.7))
@@ -160,13 +172,14 @@ private struct TrailingIconButton: View {
     let systemName: String
     let help: String
     let action: () -> Void
+    @ObservedObject private var metrics = BarMetrics.shared
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 14))
-                .frame(width: 34, height: 34)
+                .font(.system(size: metrics.trailingFontSize))
+                .frame(width: metrics.buttonHeight, height: metrics.buttonHeight)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(hovering ? Color.primary.opacity(0.16) : Color.primary.opacity(0.06))
@@ -182,6 +195,7 @@ private struct TrailingIconButton: View {
 private struct DockItemButton: View {
     let item: DockItem
     let tracker: WindowTracker
+    @ObservedObject private var metrics = BarMetrics.shared
     @State private var hovering = false
 
     var body: some View {
@@ -194,12 +208,12 @@ private struct DockItemButton: View {
                         Image(systemName: "app.dashed").resizable()
                     }
                 }
-                .frame(width: 26, height: 26)
+                .frame(width: metrics.iconSize, height: metrics.iconSize)
                 .opacity(item.isMinimized ? 0.5 : 1)
 
                 if showsTitle {
                     Text(item.title)
-                        .font(.system(size: 12))
+                        .font(.system(size: metrics.fontSize))
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .foregroundStyle(titleColor)
@@ -207,7 +221,7 @@ private struct DockItemButton: View {
                 }
             }
             .padding(.horizontal, 8)
-            .frame(height: 34)
+            .frame(height: metrics.buttonHeight)
             .background(RoundedRectangle(cornerRadius: 8).fill(backgroundColor))
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
@@ -276,10 +290,10 @@ private struct DockItemButton: View {
     }
 
     /// Exact text width so buttons hug short titles; long ones cap and
-    /// truncate with an ellipsis.
+    /// truncate with an ellipsis. Scales with the bar.
     private var titleWidth: CGFloat {
-        let size = (item.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)])
-        return min(ceil(size.width) + 2, 170)
+        let size = (item.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: metrics.fontSize)])
+        return min(ceil(size.width) + 2, metrics.maxTitleWidth)
     }
 
     private var titleColor: Color {
