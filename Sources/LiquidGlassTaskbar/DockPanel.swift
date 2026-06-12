@@ -43,22 +43,23 @@ final class DockPanelController {
             self?.reframe()
         }
 
-        // Bottom-edge clicks may be delivered to the app underneath instead
-        // of our (transparent-ish) strip — the global monitor catches those
-        // and routes them to the button above. Clicks our window does get
-        // are handled by the strip's own tap gesture; the two paths are
-        // disjoint, so nothing fires twice.
-        NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
-            self?.handleGlobalEdgeClick()
+        // The very bottom strip of pixels can't be reliably hit-tested by
+        // SwiftUI, so a local mouse monitor routes clicks there to the
+        // button above. It only consumes strip clicks; everything else
+        // falls through to SwiftUI so normal buttons keep working.
+        NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            self?.handleLocalMouseDown(event) ?? event
         }
     }
 
-    private func handleGlobalEdgeClick() {
-        guard panel.isVisible, let screen = NSScreen.screens.first else { return }
-        let location = NSEvent.mouseLocation
-        guard location.y <= screen.frame.minY + Self.bottomInset + 1,
-              location.x >= panel.frame.minX, location.x <= panel.frame.maxX else { return }
-        geometry.routeEdgeClick?(location.x - panel.frame.minX)
+    private func handleLocalMouseDown(_ event: NSEvent) -> NSEvent? {
+        guard event.window === panel else { return event }
+        // locationInWindow: origin at the panel's bottom-left, y upwards —
+        // so the bottom strip is y <= bottomInset.
+        let point = event.locationInWindow
+        guard point.y <= Self.bottomInset else { return event }
+        geometry.routeEdgeClick?(point.x)
+        return nil
     }
 
     private func reframe() {
