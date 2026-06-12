@@ -1,0 +1,15 @@
+# SwiftPM
+.build/
+.swiftpm/
+
+# App bundles assembled by build scripts
+build/
+test/BadgeTest.app/
+
+# Xcode (if ever used)
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+
+# macOS
+.DS_Store
