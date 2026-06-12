@@ -25,6 +25,9 @@ windows and minimizing, this is for you:
 - **Apps** button on the left opens the system "Apps" window of macOS Tahoe
   (Launchpad's replacement); right-click it for a built-in searchable app grid
 - **Show Desktop** and **region screenshot (⇧⌘4)** buttons on the right
+- **Fullscreen auto-hide**: on fullscreen Spaces the bar hides; move the
+  cursor to the bottom screen edge to reveal it (Dock-like), move away to
+  hide it again
 - Right-click menu per window: New Window / Restore / Minimize / Close /
   Pin–Unpin / Hide / Quit
 
@@ -108,7 +111,9 @@ See [PLAN.md](PLAN.md) for the original design document.
 - Manually dragging a window's bottom edge under the bar is still possible —
   only maximize/tile-to-bottom resizes are corrected ("Keep Windows Above
   Bar")
-- The bar doesn't show in fullscreen Spaces (same as the Windows taskbar)
+- Fullscreen detection rides on the focused window's `AXFullScreen`
+  attribute (plus a full-screen-coverage heuristic for borderless games) —
+  exotic fullscreen modes may not be detected
 - App-specific Dock menu items (e.g. Safari's "New Private Window") are a
   private channel between apps and the system Dock; the standard actions
   (New Window, Hide, Quit) are provided instead

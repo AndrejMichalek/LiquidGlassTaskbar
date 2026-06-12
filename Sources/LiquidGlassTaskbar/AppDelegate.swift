@@ -17,6 +17,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dockPanel = DockPanelController(tracker: tracker) { [weak self] in
             self?.launcher.toggle()
         }
+        dockPanel?.shouldStayRevealed = { [weak self] in
+            self?.launcher.shown ?? false
+        }
+        tracker.onFullscreenStateChange = { [weak self] active in
+            self?.dockPanel?.setFullscreenHideMode(active)
+        }
 
         if AXIsProcessTrusted() {
             start()

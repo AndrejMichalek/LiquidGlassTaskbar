@@ -95,11 +95,15 @@ final class AppsLauncherController: NSObject, NSWindowDelegate {
         }
     }
 
+    private(set) var shown = false
+
     func hide() {
+        shown = false
         panel.orderOut(nil)
     }
 
     private func show() {
+        shown = true
         model.reload()
         // Fresh root view so the search query and focus reset.
         panel.contentView = NSHostingView(rootView: AppsGridView(

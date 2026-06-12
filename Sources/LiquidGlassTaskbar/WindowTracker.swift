@@ -81,6 +81,10 @@ final class WindowTracker: ObservableObject {
     @Published private(set) var items: [DockItem] = []
     @Published private(set) var started = false
 
+    /// Fires when the active Space switches between fullscreen and normal.
+    var onFullscreenStateChange: ((Bool) -> Void)?
+    private var lastFullscreenActive = false
+
     private var contexts: [pid_t: AppContext] = [:]
     private var pidOrder: [pid_t] = []
     private var nextWindowID = 1
@@ -629,6 +633,28 @@ final class WindowTracker: ObservableObject {
                     window.isFocused = false
                 }
             }
+        }
+        updateFullscreenState(focusedElement)
+    }
+
+    private func updateFullscreenState(_ focusedElement: AXUIElement?) {
+        var active = false
+        if let focusedElement {
+            active = AX.isFullscreen(focusedElement)
+            if !active,
+               let screen = NSScreen.screens.first,
+               let frame = AX.frame(focusedElement) {
+                // Borderless-fullscreen games don't set AXFullScreen —
+                // a window covering the whole screen counts too.
+                active = frame.origin.x <= screen.frame.minX + 1
+                    && frame.origin.y <= 1
+                    && frame.width >= screen.frame.width - 2
+                    && frame.height >= screen.frame.height - 2
+            }
+        }
+        if active != lastFullscreenActive {
+            lastFullscreenActive = active
+            onFullscreenStateChange?(active)
         }
     }
 

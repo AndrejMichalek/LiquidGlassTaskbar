@@ -49,4 +49,70 @@ final class DockPanelController {
                               height: Self.barHeight),
                        display: true)
     }
+
+    // MARK: - Fullscreen auto-hide (Dock-like edge reveal)
+
+    private var fullscreenHideMode = false
+    private var revealed = false
+    private var mouseTimer: Timer?
+
+    /// Keeps the revealed bar visible while e.g. the app launcher is open.
+    var shouldStayRevealed: (() -> Bool)?
+
+    func setFullscreenHideMode(_ enabled: Bool) {
+        guard fullscreenHideMode != enabled else { return }
+        fullscreenHideMode = enabled
+        revealed = false
+        if enabled {
+            setPanelVisible(false)
+            mouseTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                self?.checkMouse()
+            }
+        } else {
+            mouseTimer?.invalidate()
+            mouseTimer = nil
+            setPanelVisible(true)
+        }
+    }
+
+    private func checkMouse() {
+        guard let screen = NSScreen.screens.first else { return }
+        let location = NSEvent.mouseLocation
+        guard location.x >= screen.frame.minX, location.x <= screen.frame.maxX else { return }
+        if !revealed {
+            if location.y <= screen.frame.minY + 2 {
+                revealed = true
+                setPanelVisible(true)
+            }
+        } else {
+            if shouldStayRevealed?() == true { return }
+            // Generous slack so the bar doesn't vanish under an open
+            // context menu.
+            let hideThreshold = screen.frame.minY + Self.bottomInset + Self.barHeight + 150
+            if location.y > hideThreshold {
+                revealed = false
+                setPanelVisible(false)
+            }
+        }
+    }
+
+    private func setPanelVisible(_ visible: Bool) {
+        if visible {
+            panel.alphaValue = 0
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.15
+                panel.animator().alphaValue = 1
+            }
+        } else {
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.15
+                panel.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                guard let self, self.fullscreenHideMode, !self.revealed else { return }
+                self.panel.orderOut(nil)
+                self.panel.alphaValue = 1
+            })
+        }
+    }
 }
