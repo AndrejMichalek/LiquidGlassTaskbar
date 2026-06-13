@@ -1,25 +1,27 @@
 import AppKit
 import SwiftUI
 
-/// Button frames in the "bar" coordinate space, for routing clicks on the
-/// bottom edge strip to the button above. Reference type on purpose —
-/// frame updates must not trigger re-renders.
-final class BarGeometry {
-    var frames: [String: CGRect] = [:]
-    var routeEdgeClick: ((CGFloat) -> Void)?
-}
-
 struct DockBarView: View {
     @ObservedObject var tracker: WindowTracker
     @ObservedObject private var metrics = BarMetrics.shared
-    let geometry: BarGeometry
     var onCustomLauncher: () -> Void
+    var onResize: () -> Void
+
+    @State private var dragStartScale: CGFloat?
+
+    // Drag-to-reorder state. `dragKey` is the app group currently lifted,
+    // `dragTranslation` the finger delta, `groupFrames` each group's layout
+    // rect (captured continuously), and `dragOrigin` a snapshot of the order
+    // and frames at drag start so live republishes can't disturb the math.
+    @State private var dragKey: String?
+    @State private var dragTranslation: CGFloat = 0
+    @State private var groupFrames: [String: CGRect] = [:]
+    @State private var dragOrigin: DragOrigin?
 
     var body: some View {
         HStack(spacing: 8) {
             AppsButton(onCustomLauncher: onCustomLauncher)
-                .reportBarFrame(id: "apps", into: geometry)
-            barDivider(id: "divider-left")
+            barDivider
             if !tracker.started {
                 Text("Grant LiquidGlassTaskbar access in System Settings → Privacy & Security → Accessibility")
                     .font(.system(size: 12))
@@ -33,104 +35,202 @@ struct DockBarView: View {
                     itemsRow
                 }
             }
-            barDivider(id: "divider-right")
+            barDivider
             TrailingIconButton(systemName: "camera.viewfinder",
                                help: "Screenshot selection (⇧⌘4)") {
                 SystemActions.screenshotSelection()
             }
-            .reportBarFrame(id: "screenshot", into: geometry)
             TrailingIconButton(systemName: "display",
                                help: "Show Desktop") {
                 SystemActions.showDesktop()
             }
-            .reportBarFrame(id: "desktop", into: geometry)
         }
         .padding(.horizontal, 12)
         .frame(height: metrics.barHeight)
         // One Liquid Glass pill hugging its content, centered like the Dock.
         .glassEffect(.regular, in: .rect(cornerRadius: metrics.cornerRadius))
-        .padding(.bottom, DockPanelController.bottomInset)
-        // Faint shadow strip under the pill. Edge clicks on it are routed
-        // by the panel's local mouse monitor (see DockPanelController),
-        // not a SwiftUI gesture — the strip can't reliably hit-test the
-        // very bottom row of pixels.
-        .background(alignment: .bottom) {
-            Color.black.opacity(0.1)
-                .frame(height: DockPanelController.bottomInset)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .coordinateSpace(name: "bar")
+        // Pinned to the bottom so resizing grows the bar upward, keeping
+        // the bottom edge fixed.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         // Animates item changes and the pill width following them — buttons
         // morph between icon-only and icon+title states.
         .animation(.smooth(duration: 0.3), value: tracker.items)
-        .onAppear {
-            geometry.routeEdgeClick = handleEdgeClick(atX:)
-        }
     }
 
     private var itemsRow: some View {
         HStack(spacing: 4) {
-            ForEach(tracker.items) { item in
-                DockItemButton(item: item, tracker: tracker)
+            ForEach(groups) { group in
+                groupView(group)
                     .transition(.blurReplace)
-                    .reportBarFrame(id: "item-\(item.id)", into: geometry)
             }
+        }
+        .coordinateSpace(.named("dockbar"))
+        .onPreferenceChange(GroupFramePreference.self) { groupFrames = $0 }
+    }
+
+    /// Consecutive items belonging to one app, collapsed into a single
+    /// draggable unit so all of an app's windows move together.
+    private var groups: [ItemGroup] {
+        var result: [ItemGroup] = []
+        for item in tracker.items {
+            if let last = result.last, last.key == item.orderKey {
+                result[result.count - 1].items.append(item)
+            } else {
+                result.append(ItemGroup(key: item.orderKey, items: [item]))
+            }
+        }
+        return result
+    }
+
+    @ViewBuilder
+    private func groupView(_ group: ItemGroup) -> some View {
+        let dragging = dragKey == group.key
+        let offsetX = dragging ? dragTranslation : gapOffset(for: group)
+        HStack(spacing: 4) {
+            ForEach(group.items) { item in
+                DockItemButton(item: item,
+                               tracker: tracker,
+                               onDragChanged: { handleDragChanged(group, $0) },
+                               onDragEnded: { handleDragEnded(group, $0) })
+            }
+        }
+        .background(
+            GeometryReader { geo in
+                Color.clear.preference(key: GroupFramePreference.self,
+                                       value: [group.key: geo.frame(in: .named("dockbar"))])
+            }
+        )
+        .offset(x: offsetX)
+        .scaleEffect(dragging ? 1.05 : 1)
+        .opacity(dragging ? 0.9 : 1)
+        .zIndex(dragging ? 1 : 0)
+        // The lifted group follows the finger with no animation; the others
+        // spring aside to open the gap.
+        .animation(dragging ? nil : .spring(response: 0.28, dampingFraction: 0.82),
+                   value: offsetX)
+    }
+
+    // MARK: - Reorder math
+
+    private func handleDragChanged(_ group: ItemGroup, _ translation: CGFloat) {
+        if dragKey == nil {
+            dragKey = group.key
+            dragOrigin = DragOrigin(order: groups.map(\.key), frames: groupFrames)
+        }
+        dragTranslation = translation
+    }
+
+    private func handleDragEnded(_ group: ItemGroup, _ translation: CGFloat) {
+        defer {
+            dragKey = nil
+            dragTranslation = 0
+            dragOrigin = nil
+        }
+        guard let origin = dragOrigin,
+              let from = origin.order.firstIndex(of: group.key),
+              let frame = origin.frames[group.key] else { return }
+        let target = insertionIndex(origin: origin, dragKey: group.key,
+                                    fingerX: frame.midX + translation)
+        var order = origin.order
+        order.remove(at: from)
+        order.insert(group.key, at: min(max(target, 0), order.count))
+        tracker.setAppOrder(order)
+    }
+
+    /// Where the dragged group would land: the count of *other* groups whose
+    /// center sits left of the finger.
+    private func insertionIndex(origin: DragOrigin, dragKey: String, fingerX: CGFloat) -> Int {
+        origin.order.reduce(0) { count, key in
+            guard key != dragKey, let f = origin.frames[key], f.midX < fingerX else { return count }
+            return count + 1
         }
     }
 
-    /// A click on the bottom strip acts as a click on the button above it.
-    private func handleEdgeClick(atX x: CGFloat) {
-        func hit(_ id: String) -> Bool {
-            guard let frame = geometry.frames[id] else { return false }
-            return x >= frame.minX && x <= frame.maxX
-        }
-        if hit("apps") {
-            if !SystemActions.openSystemAppsWindow() { onCustomLauncher() }
-            return
-        }
-        if hit("screenshot") {
-            SystemActions.screenshotSelection()
-            return
-        }
-        if hit("desktop") {
-            SystemActions.showDesktop()
-            return
-        }
-        // Only current items — stale frames of removed buttons never match.
-        for item in tracker.items where hit("item-\(item.id)") {
-            if let windowID = item.windowID {
-                tracker.handlePrimaryClick(windowID)
-            } else {
-                tracker.handlePlaceholderClick(item)
-            }
-            return
-        }
+    /// Sideways shift for a non-dragged group so the row opens a gap at the
+    /// drop target and closes the one the dragged group left behind.
+    private func gapOffset(for group: ItemGroup) -> CGFloat {
+        guard let dragKey, let origin = dragOrigin, group.key != dragKey,
+              let from = origin.order.firstIndex(of: dragKey),
+              let dragged = origin.frames[dragKey],
+              let idx = origin.order.firstIndex(of: group.key) else { return 0 }
+        let width = dragged.width + 4 // group width plus the HStack spacing
+        let target = insertionIndex(origin: origin, dragKey: dragKey,
+                                    fingerX: dragged.midX + dragTranslation)
+        let othersIndex = idx < from ? idx : idx - 1
+        let shiftedForGap = othersIndex >= target ? 1 : 0
+        let closedVacated = idx > from ? 1 : 0
+        return CGFloat(shiftedForGap - closedVacated) * width
     }
 
     /// Divider doubles as a resize handle: hovering shows the up/down
-    /// resize cursor, and the panel's local mouse monitor turns a vertical
-    /// drag here into a scale change. The visible line is 1pt; the
-    /// reported frame is wider so it's easy to grab.
-    private func barDivider(id: String) -> some View {
+    /// resize cursor, and a vertical drag changes the bar's scale (the
+    /// panel observes the scale and reframes itself). The visible line is
+    /// 1pt; horizontal padding widens the grab area.
+    private var barDivider: some View {
         Rectangle()
-            .fill(Color.primary.opacity(0.2))
+            .fill(Color.primary.opacity(0.25))
             .frame(width: 1, height: metrics.dividerHeight)
-            .frame(width: 11)
+            .padding(.horizontal, 5)
             .contentShape(Rectangle())
-            .onHover { inside in
-                if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
-            }
-            .reportBarFrame(id: id, into: geometry)
+            // Declarative, system-managed cursor region — survives this app
+            // never being frontmost, unlike imperative NSCursor.set().
+            .pointerStyle(.rowResize)
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        let start = dragStartScale ?? metrics.scale
+                        if dragStartScale == nil { dragStartScale = start }
+                        // Keep the resize cursor while the pointer strays
+                        // outside the narrow handle mid-drag.
+                        if backgroundCursorEnabled { NSCursor.resizeUpDown.set() }
+                        // Dragging up (negative height) enlarges the bar.
+                        metrics.setScale(start - value.translation.height / 110)
+                        onResize()
+                    }
+                    .onEnded { _ in dragStartScale = nil }
+            )
     }
 }
 
-private extension View {
-    func reportBarFrame(id: String, into geometry: BarGeometry) -> some View {
-        onGeometryChange(for: CGRect.self, of: { $0.frame(in: .named("bar")) }) { frame in
-            geometry.frames[id] = frame
-        }
+/// One app's contiguous run of items, dragged as a single unit.
+private struct ItemGroup: Identifiable {
+    let key: String
+    var items: [DockItem]
+    var id: String { key }
+}
+
+/// Order and geometry captured at the start of a reorder drag, so the math
+/// stays stable even if the tracker republishes mid-drag.
+private struct DragOrigin {
+    let order: [String]
+    let frames: [String: CGRect]
+}
+
+/// Collects each group's layout rect (in the "dockbar" space) for reorder
+/// hit-testing.
+private struct GroupFramePreference: PreferenceKey {
+    static let defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }
+
+// Private WindowServer API (SkyLight). The window server only honors
+// NSCursor changes from the frontmost app — which an .accessory app with a
+// non-activating panel never is. The "SetsCursorInBackground" connection
+// property opts this app out of that rule (same trick AltTab uses), so the
+// resize cursor can be held while a drag strays outside the handle.
+@_silgen_name("CGSMainConnectionID")
+private func CGSMainConnectionID() -> UInt32
+
+@_silgen_name("CGSSetConnectionProperty")
+private func CGSSetConnectionProperty(_ cid: UInt32, _ targetCID: UInt32,
+                                      _ key: CFString, _ value: CFTypeRef) -> CGError
+
+private let backgroundCursorEnabled: Bool = {
+    let cid = CGSMainConnectionID()
+    return CGSSetConnectionProperty(cid, cid, "SetsCursorInBackground" as CFString, kCFBooleanTrue) == .success
+}()
 
 private struct AppsButton: View {
     var onCustomLauncher: () -> Void
@@ -148,10 +248,10 @@ private struct AppsButton: View {
             .padding(.horizontal, 14)
             .frame(height: metrics.buttonHeight)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: metrics.buttonCornerRadius)
                     .fill(Color.accentColor.opacity(hovering ? 0.9 : 0.7))
             )
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .contentShape(RoundedRectangle(cornerRadius: metrics.buttonCornerRadius))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -181,10 +281,10 @@ private struct TrailingIconButton: View {
                 .font(.system(size: metrics.trailingFontSize))
                 .frame(width: metrics.buttonHeight, height: metrics.buttonHeight)
                 .background(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: metrics.buttonCornerRadius)
                         .fill(hovering ? Color.primary.opacity(0.16) : Color.primary.opacity(0.06))
                 )
-                .contentShape(RoundedRectangle(cornerRadius: 8))
+                .contentShape(RoundedRectangle(cornerRadius: metrics.buttonCornerRadius))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -195,46 +295,58 @@ private struct TrailingIconButton: View {
 private struct DockItemButton: View {
     let item: DockItem
     let tracker: WindowTracker
+    var onDragChanged: (CGFloat) -> Void
+    var onDragEnded: (CGFloat) -> Void
     @ObservedObject private var metrics = BarMetrics.shared
     @State private var hovering = false
 
     var body: some View {
-        Button(action: primaryAction) {
-            HStack(spacing: 6) {
-                Group {
-                    if let icon = item.icon {
-                        Image(nsImage: icon).resizable()
-                    } else {
-                        Image(systemName: "app.dashed").resizable()
-                    }
-                }
-                .frame(width: metrics.iconSize, height: metrics.iconSize)
-                .opacity(item.isMinimized ? 0.5 : 1)
+        label
+            .contentShape(RoundedRectangle(cornerRadius: metrics.buttonCornerRadius))
+            .onHover { hovering = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovering)
+            .help(item.isPlaceholder ? "Launch \(item.appName)" : item.title)
+            .onTapGesture { primaryAction() }
+            // Reorder drag. Global space keeps the translation stable while
+            // the group is offset; the 8 pt threshold lets a plain click fall
+            // through to the tap handler above.
+            .gesture(
+                DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                    .onChanged { onDragChanged($0.translation.width) }
+                    .onEnded { onDragEnded($0.translation.width) }
+            )
+            .contextMenu { contextMenuItems }
+    }
 
-                if showsTitle {
-                    Text(item.title)
-                        .font(.system(size: metrics.fontSize))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .foregroundStyle(titleColor)
-                        .frame(width: titleWidth, alignment: .leading)
+    private var label: some View {
+        HStack(spacing: 6) {
+            Group {
+                if let icon = item.icon {
+                    Image(nsImage: icon).resizable()
+                } else {
+                    Image(systemName: "app.dashed").resizable()
                 }
             }
-            .padding(.horizontal, 8)
-            .frame(height: metrics.buttonHeight)
-            .background(RoundedRectangle(cornerRadius: 8).fill(backgroundColor))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(item.isFocused ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.08),
-                            lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .frame(width: metrics.iconSize, height: metrics.iconSize)
+            .opacity(item.isMinimized ? 0.5 : 1)
+
+            if showsTitle {
+                Text(item.title)
+                    .font(.system(size: metrics.fontSize))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(titleColor)
+                    .frame(width: titleWidth, alignment: .leading)
+            }
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
-        .help(item.isPlaceholder ? "Launch \(item.appName)" : item.title)
-        .contextMenu { contextMenuItems }
+        .padding(.horizontal, 8)
+        .frame(height: metrics.buttonHeight)
+        .background(RoundedRectangle(cornerRadius: metrics.buttonCornerRadius).fill(backgroundColor))
+        .overlay(
+            RoundedRectangle(cornerRadius: metrics.buttonCornerRadius)
+                .stroke(item.isFocused ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.08),
+                        lineWidth: 1)
+        )
     }
 
     private func primaryAction() {

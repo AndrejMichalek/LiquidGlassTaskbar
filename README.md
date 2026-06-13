@@ -19,6 +19,10 @@ windows and minimizing, this is for you:
   after its windows close, as a dimmed app button — click to launch. Pinned
   apps sit at the start of the bar in pin order, and their windows appear at
   the pin position
+- **Drag to reorder**: press and drag any button sideways to move its app to a
+  new spot; all of that app's windows travel together and the rest slide aside
+  to open a gap. The order is remembered (a quick click still
+  restores/minimizes as usual)
 - **Notification highlight**: when an app's dock badge appears or grows while
   the app is in the background, its buttons turn orange; activating the app
   clears it
@@ -122,7 +126,7 @@ See [PLAN.md](PLAN.md) for the original design document.
 - App-specific Dock menu items (e.g. Safari's "New Private Window") are a
   private channel between apps and the system Dock; the standard actions
   (New Window, Hide, Quit) are provided instead
-- No hover window previews or drag-to-reorder yet
+- No hover window previews yet
 
 ## Debugging
 

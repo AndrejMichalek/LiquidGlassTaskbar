@@ -18,6 +18,15 @@ struct DockItem: Identifiable, Equatable {
 
     var isPlaceholder: Bool { windowID == nil }
 
+    /// Stable identity for drag-reordering: groups all of an app's windows
+    /// under one key. The bundle ID when available (so the order survives a
+    /// relaunch and pinned apps keep their slot); otherwise the live pid.
+    var orderKey: String {
+        if let bundleID, !bundleID.isEmpty { return bundleID }
+        if let pid { return "pid:\(pid)" }
+        return id
+    }
+
     static func == (lhs: DockItem, rhs: DockItem) -> Bool {
         lhs.id == rhs.id
             && lhs.title == rhs.title
@@ -94,12 +103,21 @@ final class WindowTracker: ObservableObject {
     private var placeholderIcons: [String: NSImage] = [:]
     private let pinsKey = "pinnedApps"
 
+    /// User-defined left-to-right order of app groups, keyed by
+    /// `DockItem.orderKey` and set by drag-reordering in the bar. Empty
+    /// means natural order (pinned first, then launch order).
+    private var appOrder: [String] = []
+    private let appOrderKey = "dockAppOrder"
+
     // MARK: - Lifecycle
 
     init() {
         if let data = UserDefaults.standard.data(forKey: pinsKey),
            let pins = try? JSONDecoder().decode([PinnedApp].self, from: data) {
             pinned = pins
+        }
+        if let order = UserDefaults.standard.array(forKey: appOrderKey) as? [String] {
+            appOrder = order
         }
     }
 
@@ -279,6 +297,41 @@ final class WindowTracker: ObservableObject {
         let icon = NSWorkspace.shared.icon(forFile: pin.path)
         placeholderIcons[pin.path] = icon
         return icon
+    }
+
+    // MARK: - Reordering
+
+    /// Apply a new left-to-right order of app groups, produced by a drag in
+    /// the bar. `orderedKeys` are `DockItem.orderKey` values for the groups
+    /// currently shown; persisted so pinned apps keep their position across
+    /// launches. Apps that appear later and aren't in the list fall in at
+    /// the end, in natural order.
+    func setAppOrder(_ orderedKeys: [String]) {
+        guard orderedKeys != appOrder else { return }
+        appOrder = orderedKeys
+        UserDefaults.standard.set(appOrder, forKey: appOrderKey)
+        publish()
+    }
+
+    /// Reorder published items so their app groups follow `appOrder`; groups
+    /// absent from it keep their natural order at the end.
+    private func applyAppOrder(_ items: [DockItem]) -> [DockItem] {
+        guard !appOrder.isEmpty else { return items }
+        var groups: [(key: String, items: [DockItem])] = []
+        for item in items {
+            if groups.last?.key == item.orderKey {
+                groups[groups.count - 1].items.append(item)
+            } else {
+                groups.append((item.orderKey, [item]))
+            }
+        }
+        let rank: (String) -> Int = { self.appOrder.firstIndex(of: $0) ?? Int.max }
+        return groups.enumerated()
+            .sorted { lhs, rhs in
+                let lr = rank(lhs.element.key), rr = rank(rhs.element.key)
+                return lr == rr ? lhs.offset < rhs.offset : lr < rr
+            }
+            .flatMap { $0.element.items }
     }
 
     // MARK: - UI actions
@@ -740,8 +793,9 @@ final class WindowTracker: ObservableObject {
             out.append(contentsOf: windowItems(ctx, pid: pid, isPinned: isPinned))
         }
 
-        if out != items {
-            items = out
+        let ordered = applyAppOrder(out)
+        if ordered != items {
+            items = ordered
         }
     }
 

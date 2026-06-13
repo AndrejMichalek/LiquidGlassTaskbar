@@ -36,5 +36,8 @@ final class BarMetrics: ObservableObject {
     var trailingFontSize: CGFloat { (14 * scale).rounded() }
     var dividerHeight: CGFloat { (28 * scale).rounded() }
     var cornerRadius: CGFloat { barHeight * 0.48 }
+    /// Concentric with the pill: inner radius = outer radius minus the
+    /// vertical inset of a button inside the bar.
+    var buttonCornerRadius: CGFloat { max(6, cornerRadius - (barHeight - buttonHeight) / 2) }
     var maxTitleWidth: CGFloat { (170 * scale).rounded() }
 }

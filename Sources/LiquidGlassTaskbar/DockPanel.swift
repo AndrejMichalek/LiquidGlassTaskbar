@@ -9,10 +9,8 @@ final class DockPanelController {
     static let bottomInset: CGFloat = 8
 
     private let panel: NSPanel
-    private let geometry: BarGeometry
 
-    init(tracker: WindowTracker, geometry: BarGeometry, onCustomLauncher: @escaping () -> Void) {
-        self.geometry = geometry
+    init(tracker: WindowTracker, onCustomLauncher: @escaping () -> Void) {
         let panel = NSPanel(contentRect: .zero,
                             styleMask: [.borderless, .nonactivatingPanel],
                             backing: .buffered,
@@ -29,10 +27,15 @@ final class DockPanelController {
         panel.isFloatingPanel = true
         panel.becomesKeyOnlyIfNeeded = true
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(rootView: DockBarView(tracker: tracker,
-                                                                geometry: geometry,
-                                                                onCustomLauncher: onCustomLauncher))
+        // Needed so the divider's resize cursor updates continuously.
+        panel.acceptsMouseMovedEvents = true
+        weak var weakSelf: DockPanelController?
+        panel.contentView = NSHostingView(rootView: DockBarView(
+            tracker: tracker,
+            onCustomLauncher: onCustomLauncher,
+            onResize: { weakSelf?.reframe() }))
         self.panel = panel
+        weakSelf = self
 
         reframe()
         panel.orderFrontRegardless()
@@ -43,72 +46,15 @@ final class DockPanelController {
         ) { [weak self] _ in
             self?.reframe()
         }
-
-        // A local mouse monitor handles two things SwiftUI can't do
-        // reliably in a non-activating panel: routing bottom-strip clicks
-        // to the button above, and dragging a divider to resize the bar.
-        // Everything else falls through so normal buttons keep working.
-        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
-            self?.handleLocalMouse(event) ?? event
-        }
-    }
-
-    private var resizing = false
-    private var resizeStartMouseY: CGFloat = 0
-    private var resizeStartScale: CGFloat = 1
-
-    private func handleLocalMouse(_ event: NSEvent) -> NSEvent? {
-        if resizing {
-            switch event.type {
-            case .leftMouseDragged:
-                // Mouse y grows upward, so dragging up enlarges the bar.
-                let dy = NSEvent.mouseLocation.y - resizeStartMouseY
-                BarMetrics.shared.setScale(resizeStartScale + dy / 110)
-                reframe()
-                return nil
-            case .leftMouseUp:
-                resizing = false
-                NSCursor.pop()
-                return nil
-            default:
-                return nil
-            }
-        }
-
-        guard event.window === panel, event.type == .leftMouseDown else { return event }
-        // locationInWindow: origin at the panel's bottom-left, y upwards.
-        let point = event.locationInWindow
-        if isOnDivider(x: point.x) {
-            resizing = true
-            resizeStartMouseY = NSEvent.mouseLocation.y
-            resizeStartScale = BarMetrics.shared.scale
-            NSCursor.resizeUpDown.push()
-            return nil
-        }
-        guard point.y <= Self.bottomInset else { return event }
-        geometry.routeEdgeClick?(point.x)
-        return nil
-    }
-
-    private func isOnDivider(x: CGFloat) -> Bool {
-        for id in ["divider-left", "divider-right"] {
-            if let frame = geometry.frames[id], x >= frame.minX, x <= frame.maxX {
-                return true
-            }
-        }
-        return false
     }
 
     private func reframe() {
         guard let screen = NSScreen.screens.first else { return }
         let frame = screen.frame
-        // Reaches the very bottom edge — the strip below the pill stays
-        // clickable so edge clicks land on the button above (Fitts's law,
-        // like the Windows taskbar).
         panel.setFrame(NSRect(x: frame.minX + Self.sideInset,
-                              y: frame.minY,
+                              y: frame.minY + Self.bottomInset,
                               width: frame.width - Self.sideInset * 2,
-                              height: Self.barHeight + Self.bottomInset),
+                              height: Self.barHeight),
                        display: true)
     }
 
