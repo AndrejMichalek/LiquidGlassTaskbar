@@ -27,6 +27,13 @@ final class DockPanelController {
         panel.isFloatingPanel = true
         panel.becomesKeyOnlyIfNeeded = true
         panel.isReleasedWhenClosed = false
+        // Liquid Glass picks its light/dark variant from the view's
+        // appearance and also reacts to the brightness of content behind it.
+        // Left to adapt, the bar flips to light when a bright window passes
+        // behind it and can stay there after the window is minimized. Pin a
+        // dark appearance so the glass keeps a consistent look that reads
+        // against the desktop.
+        panel.appearance = NSAppearance(named: .darkAqua)
         // Needed so the divider's resize cursor updates continuously.
         panel.acceptsMouseMovedEvents = true
         weak var weakSelf: DockPanelController?
