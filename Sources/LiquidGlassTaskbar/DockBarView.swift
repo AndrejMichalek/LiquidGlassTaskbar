@@ -239,19 +239,15 @@ private struct AppsButton: View {
 
     var body: some View {
         Button(action: openSystemApps) {
-            HStack(spacing: 6) {
-                Image(systemName: "square.grid.3x3.fill")
-                Text("Apps").fontWeight(.semibold)
-            }
-            .font(.system(size: metrics.appsFontSize))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .frame(height: metrics.buttonHeight)
-            .background(
-                RoundedRectangle(cornerRadius: metrics.buttonCornerRadius)
-                    .fill(Color.accentColor.opacity(hovering ? 0.9 : 0.7))
-            )
-            .contentShape(RoundedRectangle(cornerRadius: metrics.buttonCornerRadius))
+            Image(systemName: "square.grid.3x3.fill")
+                .font(.system(size: metrics.appsFontSize))
+                .foregroundStyle(.white)
+                .frame(width: metrics.buttonHeight, height: metrics.buttonHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: metrics.buttonCornerRadius)
+                        .fill(Color.accentColor.opacity(hovering ? 0.9 : 0.7))
+                )
+                .contentShape(RoundedRectangle(cornerRadius: metrics.buttonCornerRadius))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
