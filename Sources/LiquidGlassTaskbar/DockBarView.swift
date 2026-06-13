@@ -40,6 +40,10 @@ struct DockBarView: View {
                                help: "Screenshot selection (⇧⌘4)") {
                 SystemActions.screenshotSelection()
             }
+            TrailingIconButton(systemName: "face.smiling",
+                               help: "Emoji & Symbols (⌃⌘Space)") {
+                SystemActions.showEmojiPicker()
+            }
             TrailingIconButton(systemName: "display",
                                help: "Show Desktop") {
                 SystemActions.showDesktop()

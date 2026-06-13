@@ -31,6 +31,14 @@ enum SystemActions {
         postKeystroke(keyCode: 21, flags: [.maskCommand, .maskShift]) // kVK_ANSI_4
     }
 
+    /// The system Emoji & Symbols picker — synthetic ⌃⌘Space, the standard
+    /// macOS shortcut. Posted globally so it opens in whatever app is
+    /// frontmost (our panel never steals activation) and inserts into its
+    /// focused text field.
+    static func showEmojiPicker() {
+        postKeystroke(keyCode: 49, flags: [.maskCommand, .maskControl]) // kVK_Space
+    }
+
     /// Posts a keyboard shortcut — globally, or directly to a process.
     static func postKeystroke(keyCode: CGKeyCode, flags: CGEventFlags, toPid pid: pid_t? = nil) {
         let source = CGEventSource(stateID: .hidSystemState)
