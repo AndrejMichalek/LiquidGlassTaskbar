@@ -28,7 +28,16 @@ windows and minimizing, this is for you:
   clears it
 - **Apps** button on the left opens the system "Apps" window of macOS Tahoe
   (Launchpad's replacement); right-click it for a built-in searchable app grid
-- **Show Desktop** and **region screenshot (⇧⌘4)** buttons on the right
+- **Show Desktop**, **Emoji & Symbols** (⌃⌘Space), and **region screenshot
+  (⇧⌘4)** buttons on the right
+- **External display brightness**: a sun button opens a popover with a
+  brightness slider per connected external monitor. Uses DDC/CI over the
+  display link (like MonitorControl/Lunar) — no Screen Recording permission
+  needed. Apple Silicon only; the button appears only when a DDC-capable
+  external display is attached
+- **Customizable buttons**: right-click the icon area (or the divider next to
+  it) for a checklist to show or hide each fixed button (Apps, Screenshot,
+  Emoji, Brightness, Show Desktop)
 - **Fullscreen auto-hide**: on fullscreen Spaces the bar hides; move the
   cursor to the bottom screen edge to reveal it (Dock-like), move away to
   hide it again
@@ -127,6 +136,11 @@ See [PLAN.md](PLAN.md) for the original design document.
   private channel between apps and the system Dock; the standard actions
   (New Window, Hide, Quit) are provided instead
 - No hover window previews yet
+- External brightness rides on DDC/CI, which some setups refuse: the built-in
+  HDMI port of M1 / entry-level M2 Macs, certain hubs and adapters, and
+  mirrored or headless configurations where the display controller rejects
+  I²C. There's no software-dimming fallback — the button does nothing where
+  DDC is unavailable (hide it via the right-click menu)
 
 ## Debugging
 

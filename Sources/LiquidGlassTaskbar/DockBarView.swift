@@ -4,6 +4,8 @@ import SwiftUI
 struct DockBarView: View {
     @ObservedObject var tracker: WindowTracker
     @ObservedObject private var metrics = BarMetrics.shared
+    @ObservedObject private var tools = ToolVisibility.shared
+    @ObservedObject private var brightness = DisplayBrightnessManager.shared
     var onCustomLauncher: () -> Void
     var onResize: () -> Void
 
@@ -20,8 +22,10 @@ struct DockBarView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            AppsButton(onCustomLauncher: onCustomLauncher)
-            barDivider
+            if tools.isEnabled(.apps) {
+                AppsButton(onCustomLauncher: onCustomLauncher)
+                barDivider
+            }
             if !tracker.started {
                 Text("Grant LiquidGlassTaskbar access in System Settings → Privacy & Security → Accessibility")
                     .font(.system(size: 12))
@@ -35,19 +39,12 @@ struct DockBarView: View {
                     itemsRow
                 }
             }
+            // Always present: doubles as the resize handle and the anchor for
+            // the right-click "show/hide buttons" menu, so the menu stays
+            // reachable even with every trailing icon hidden.
             barDivider
-            TrailingIconButton(systemName: "camera.viewfinder",
-                               help: "Screenshot selection (⇧⌘4)") {
-                SystemActions.screenshotSelection()
-            }
-            TrailingIconButton(systemName: "face.smiling",
-                               help: "Emoji & Symbols (⌃⌘Space)") {
-                SystemActions.showEmojiPicker()
-            }
-            TrailingIconButton(systemName: "display",
-                               help: "Show Desktop") {
-                SystemActions.showDesktop()
-            }
+                .contextMenu { toolVisibilityMenu }
+            trailingIcons
         }
         .padding(.horizontal, 12)
         .frame(height: metrics.barHeight)
@@ -59,6 +56,49 @@ struct DockBarView: View {
         // Animates item changes and the pill width following them — buttons
         // morph between icon-only and icon+title states.
         .animation(.smooth(duration: 0.3), value: tracker.items)
+    }
+
+    /// The fixed utility buttons on the right. Right-clicking the group (or
+    /// the divider beside it) opens the show/hide menu. The brightness button
+    /// only appears when a DDC-capable external display is actually attached.
+    private var trailingIcons: some View {
+        HStack(spacing: 8) {
+            if tools.isEnabled(.screenshot) {
+                TrailingIconButton(systemName: "camera.viewfinder",
+                                   help: "Screenshot selection (⇧⌘4)") {
+                    SystemActions.screenshotSelection()
+                }
+            }
+            if tools.isEnabled(.emoji) {
+                TrailingIconButton(systemName: "face.smiling",
+                                   help: "Emoji & Symbols (⌃⌘Space)") {
+                    SystemActions.showEmojiPicker()
+                }
+            }
+            if tools.isEnabled(.brightness) && !brightness.displays.isEmpty {
+                BrightnessButton()
+            }
+            if tools.isEnabled(.showDesktop) {
+                TrailingIconButton(systemName: "display",
+                                   help: "Show Desktop") {
+                    SystemActions.showDesktop()
+                }
+            }
+        }
+        .contextMenu { toolVisibilityMenu }
+    }
+
+    /// Vertical checklist of the fixed buttons; tapping a row shows or hides
+    /// that button.
+    @ViewBuilder
+    private var toolVisibilityMenu: some View {
+        Text("Show buttons")
+        ForEach(DockTool.allCases) { tool in
+            Toggle(tool.title, isOn: Binding(
+                get: { tools.isEnabled(tool) },
+                set: { tools.set(tool, enabled: $0) }
+            ))
+        }
     }
 
     private var itemsRow: some View {
@@ -289,6 +329,87 @@ private struct TrailingIconButton: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(help)
+    }
+}
+
+/// Sun icon that opens a popover with one brightness slider per external
+/// display (MonitorControl-style). Styled like the other trailing buttons.
+private struct BrightnessButton: View {
+    @ObservedObject private var manager = DisplayBrightnessManager.shared
+    @ObservedObject private var metrics = BarMetrics.shared
+    @State private var hovering = false
+    @State private var showingPopover = false
+
+    var body: some View {
+        Button {
+            manager.refresh()
+            showingPopover.toggle()
+        } label: {
+            Image(systemName: "sun.max")
+                .font(.system(size: metrics.trailingFontSize))
+                .frame(width: metrics.buttonHeight, height: metrics.buttonHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: metrics.buttonCornerRadius)
+                        .fill(hovering ? Color.primary.opacity(0.16) : Color.primary.opacity(0.06))
+                )
+                .contentShape(RoundedRectangle(cornerRadius: metrics.buttonCornerRadius))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("External display brightness")
+        .popover(isPresented: $showingPopover, arrowEdge: .bottom) {
+            BrightnessPopover(manager: manager)
+        }
+    }
+}
+
+private struct BrightnessPopover: View {
+    @ObservedObject var manager: DisplayBrightnessManager
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if manager.displays.isEmpty {
+                Text("No DDC-capable external display found.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(manager.displays) { display in
+                    DisplaySliderRow(display: display, manager: manager)
+                }
+            }
+        }
+        .padding(18)
+        .frame(width: 280)
+    }
+}
+
+private struct DisplaySliderRow: View {
+    let display: DisplayBrightnessManager.ExternalDisplay
+    let manager: DisplayBrightnessManager
+    @State private var value: Double
+
+    init(display: DisplayBrightnessManager.ExternalDisplay, manager: DisplayBrightnessManager) {
+        self.display = display
+        self.manager = manager
+        _value = State(initialValue: display.brightness)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(display.name)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+            HStack(spacing: 10) {
+                Image(systemName: "sun.min")
+                    .foregroundStyle(.secondary)
+                Slider(value: $value, in: 0 ... 1)
+                Image(systemName: "sun.max.fill")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .onChange(of: value) { _, newValue in
+            manager.setBrightness(newValue, for: display.id)
+        }
     }
 }
 
